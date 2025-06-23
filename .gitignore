@@ -1,0 +1,14 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# venv
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets & sessions
+.env
+sessions/
