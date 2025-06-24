@@ -5,13 +5,14 @@ from utils.logging import log
 
 app = FastAPI(title="Telegram Auth API")
 
-# CORS 설정을 더 포괄적으로 변경
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 origin 허용 (임시)
+    allow_origins=["*"],  # 모든 origin 허용
     allow_credentials=False,  # credentials가 false일 때만 * 허용 가능
-    allow_methods=["*"],  # 모든 HTTP 메서드 허용
-    allow_headers=["*"],  # 모든 헤더 허용
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 app.include_router(auth_router)

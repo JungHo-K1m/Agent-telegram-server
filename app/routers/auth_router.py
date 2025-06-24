@@ -7,15 +7,6 @@ from utils.logging import log
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# CORS 헤더를 추가하는 미들웨어
-@router.middleware("http")
-async def add_cors_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
-
 # 1) 모든 필드 '필수' 로 변경
 class StartReq(BaseModel):
     api_id: int
