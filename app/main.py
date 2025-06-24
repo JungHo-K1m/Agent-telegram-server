@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers.auth_router import router as auth_router
 from app.routers.persona_router import router as persona_router
 from app.routers.mapping_router import router as map_router
+from app.routers.account_router import router as account_router
 from utils.logging import log
 
 app = FastAPI(title="Telegram Auth API")
@@ -15,13 +16,14 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 app.include_router(auth_router)
 app.include_router(persona_router)
 app.include_router(map_router)
+app.include_router(account_router)
 
 @app.get("/healthz")
 async def health():

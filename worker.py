@@ -1,16 +1,30 @@
 import asyncio, json, os
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from app.services import mapping_store, openai_service
+from app.services import mapping_store, openai_service, account_service
 
-API_ID   = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-AGENTS   = json.load(open("data/agent_sessions.json", "r"))  # {agent_id: session_str}
+# 환경변수에서 OpenAI API 키만 로드
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# 에이전트 세션 정보 로드
+AGENTS_FILE = "data/agent_sessions.json"
+AGENTS = json.load(open(AGENTS_FILE, "r")) if os.path.exists(AGENTS_FILE) else {}
 
 ctx_cache: dict[str, list[dict]] = {}  # (agent:chat) -> messages
 
 async def make_client(agent_id, sess):
-    client = TelegramClient(StringSession(sess), API_ID, API_HASH)
+    # 에이전트 ID에서 계정 정보 찾기
+    account = None
+    for account_id, account_info in account_service.list_accounts()["accounts"].items():
+        if account_info["phone_number"] == agent_id:
+            account = account_info
+            break
+    
+    if not account:
+        print(f"Warning: No account found for agent {agent_id}")
+        return None
+    
+    client = TelegramClient(StringSession(sess), account["api_id"], account["api_hash"])
 
     @client.on(events.NewMessage(incoming=True))
     async def handler(event):
@@ -34,9 +48,17 @@ async def make_client(agent_id, sess):
     return client
 
 async def main():
-    clients = [await make_client(aid, sess) for aid, sess in AGENTS.items()]
-    print("All agents running.")
-    await asyncio.gather(*[c.run_until_disconnected() for c in clients])
+    clients = []
+    for aid, sess in AGENTS.items():
+        client = await make_client(aid, sess)
+        if client:
+            clients.append(client)
+    
+    if clients:
+        print(f"Running {len(clients)} agents...")
+        await asyncio.gather(*[c.run_until_disconnected() for c in clients])
+    else:
+        print("No valid agents found. Please check your agent_sessions.json and accounts.json")
 
 if __name__ == "__main__":
     asyncio.run(main()) 
