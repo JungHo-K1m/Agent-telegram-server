@@ -12,3 +12,6 @@ __pycache__/
 # Secrets & sessions
 .env
 sessions/
+
+# Data files
+data/
