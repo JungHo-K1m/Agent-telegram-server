@@ -5,14 +5,16 @@ from utils.logging import log
 
 app = FastAPI(title="Telegram Auth API")
 
-# CORS 설정
+ALLOWED_ORIGINS = [
+    "https://v0-supabase-community-starter-qb.vercel.app",
+    "http://localhost:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 origin 허용
-    allow_credentials=False,  # credentials가 false일 때만 * 허용 가능
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 app.include_router(auth_router)
