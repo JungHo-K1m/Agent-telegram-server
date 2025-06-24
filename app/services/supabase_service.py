@@ -3,12 +3,22 @@ from typing import Dict, List, Optional, Any
 from app.config import settings
 import uuid
 
-# Supabase 클라이언트 초기화
-supabase: Client = create_client(settings.supabase_url, settings.supabase_key)
+# Supabase 클라이언트 초기화 (지연 초기화)
+supabase: Optional[Client] = None
+
+def _get_supabase_client() -> Client:
+    """Supabase 클라이언트를 지연 초기화"""
+    global supabase
+    if supabase is None:
+        if not settings.supabase_url or not settings.supabase_key:
+            raise Exception("Supabase 환경변수가 설정되지 않았습니다. SUPABASE_URL과 SUPABASE_ANON_KEY를 설정해주세요.")
+        supabase = create_client(settings.supabase_url, settings.supabase_key)
+    return supabase
 
 # ===== ACCOUNTS =====
 def add_account(account_id: str, name: str, api_id: int, api_hash: str, phone_number: str) -> str:
     """새 계정 추가"""
+    client = _get_supabase_client()
     data = {
         "id": account_id,
         "name": name,
@@ -16,19 +26,21 @@ def add_account(account_id: str, name: str, api_id: int, api_hash: str, phone_nu
         "api_hash": api_hash,
         "phone_number": phone_number
     }
-    result = supabase.table("accounts").insert(data).execute()
+    result = client.table("accounts").insert(data).execute()
     return account_id
 
 def get_account(account_id: str) -> Optional[Dict]:
     """계정 정보 조회"""
-    result = supabase.table("accounts").select("*").eq("id", account_id).execute()
+    client = _get_supabase_client()
+    result = client.table("accounts").select("*").eq("id", account_id).execute()
     if result.data:
         return result.data[0]
     return None
 
 def list_accounts() -> Dict:
     """모든 계정 목록 조회"""
-    result = supabase.table("accounts").select("*").execute()
+    client = _get_supabase_client()
+    result = client.table("accounts").select("*").execute()
     accounts = {}
     for account in result.data:
         accounts[account["id"]] = {
@@ -41,27 +53,31 @@ def list_accounts() -> Dict:
 
 def update_account(account_id: str, **kwargs) -> bool:
     """계정 정보 업데이트"""
-    result = supabase.table("accounts").update(kwargs).eq("id", account_id).execute()
+    client = _get_supabase_client()
+    result = client.table("accounts").update(kwargs).eq("id", account_id).execute()
     return len(result.data) > 0
 
 def delete_account(account_id: str) -> bool:
     """계정 삭제"""
-    result = supabase.table("accounts").delete().eq("id", account_id).execute()
+    client = _get_supabase_client()
+    result = client.table("accounts").delete().eq("id", account_id).execute()
     return len(result.data) > 0
 
 # ===== PERSONAS =====
 def add_persona(name: str, system_prompt: str) -> str:
     """새 페르소나 추가"""
+    client = _get_supabase_client()
     data = {
         "name": name,
         "system_prompt": system_prompt
     }
-    result = supabase.table("personas").insert(data).execute()
+    result = client.table("personas").insert(data).execute()
     return result.data[0]["id"]
 
 def list_personas() -> Dict:
     """모든 페르소나 목록 조회"""
-    result = supabase.table("personas").select("*").execute()
+    client = _get_supabase_client()
+    result = client.table("personas").select("*").execute()
     personas = {}
     for persona in result.data:
         personas[persona["id"]] = {
@@ -72,24 +88,28 @@ def list_personas() -> Dict:
 
 def get_persona(persona_id: str) -> Optional[Dict]:
     """특정 페르소나 조회"""
-    result = supabase.table("personas").select("*").eq("id", persona_id).execute()
+    client = _get_supabase_client()
+    result = client.table("personas").select("*").eq("id", persona_id).execute()
     if result.data:
         return result.data[0]
     return None
 
 def update_persona(persona_id: str, **kwargs) -> bool:
     """페르소나 업데이트"""
-    result = supabase.table("personas").update(kwargs).eq("id", persona_id).execute()
+    client = _get_supabase_client()
+    result = client.table("personas").update(kwargs).eq("id", persona_id).execute()
     return len(result.data) > 0
 
 def delete_persona(persona_id: str) -> bool:
     """페르소나 삭제"""
-    result = supabase.table("personas").delete().eq("id", persona_id).execute()
+    client = _get_supabase_client()
+    result = client.table("personas").delete().eq("id", persona_id).execute()
     return len(result.data) > 0
 
 # ===== MAPPINGS =====
 def save_mapping(agent_id: str, chat_id: int, role: str, persona_id: str, delay: int) -> str:
     """매핑 저장 (upsert)"""
+    client = _get_supabase_client()
     data = {
         "agent_id": agent_id,
         "chat_id": chat_id,
@@ -97,12 +117,13 @@ def save_mapping(agent_id: str, chat_id: int, role: str, persona_id: str, delay:
         "persona_id": persona_id,
         "delay_sec": delay
     }
-    result = supabase.table("mappings").upsert(data, on_conflict="agent_id,chat_id").execute()
+    result = client.table("mappings").upsert(data, on_conflict="agent_id,chat_id").execute()
     return result.data[0]["id"]
 
 def get_mapping(agent_id: str, chat_id: int) -> Optional[Dict]:
     """특정 매핑 조회"""
-    result = supabase.table("mappings").select("*").eq("agent_id", agent_id).eq("chat_id", chat_id).execute()
+    client = _get_supabase_client()
+    result = client.table("mappings").select("*").eq("agent_id", agent_id).eq("chat_id", chat_id).execute()
     if result.data:
         mapping = result.data[0]
         return {
@@ -114,7 +135,8 @@ def get_mapping(agent_id: str, chat_id: int) -> Optional[Dict]:
 
 def list_all_mappings() -> Dict:
     """모든 매핑 조회"""
-    result = supabase.table("mappings").select("*").execute()
+    client = _get_supabase_client()
+    result = client.table("mappings").select("*").execute()
     mappings = {}
     for mapping in result.data:
         key = f"{mapping['agent_id']}:{mapping['chat_id']}"
@@ -127,7 +149,8 @@ def list_all_mappings() -> Dict:
 
 def list_agent_mappings(agent_id: str) -> Dict:
     """특정 계정의 모든 매핑 조회"""
-    result = supabase.table("mappings").select("*").eq("agent_id", agent_id).execute()
+    client = _get_supabase_client()
+    result = client.table("mappings").select("*").eq("agent_id", agent_id).execute()
     mappings = {}
     for mapping in result.data:
         mappings[str(mapping["chat_id"])] = {
@@ -139,24 +162,28 @@ def list_agent_mappings(agent_id: str) -> Dict:
 
 def update_mapping(agent_id: str, chat_id: int, **kwargs) -> bool:
     """매핑 업데이트"""
-    result = supabase.table("mappings").update(kwargs).eq("agent_id", agent_id).eq("chat_id", chat_id).execute()
+    client = _get_supabase_client()
+    result = client.table("mappings").update(kwargs).eq("agent_id", agent_id).eq("chat_id", chat_id).execute()
     return len(result.data) > 0
 
 def delete_mapping(agent_id: str, chat_id: int) -> bool:
     """특정 매핑 삭제"""
-    result = supabase.table("mappings").delete().eq("agent_id", agent_id).eq("chat_id", chat_id).execute()
+    client = _get_supabase_client()
+    result = client.table("mappings").delete().eq("agent_id", agent_id).eq("chat_id", chat_id).execute()
     return len(result.data) > 0
 
 def delete_agent_mappings(agent_id: str) -> int:
     """계정의 모든 매핑 삭제"""
-    result = supabase.table("mappings").delete().eq("agent_id", agent_id).execute()
+    client = _get_supabase_client()
+    result = client.table("mappings").delete().eq("agent_id", agent_id).execute()
     return len(result.data)
 
 # ===== AGENT SESSIONS =====
 def save_agent_session(agent_id: str, session_string: str) -> str:
     """에이전트 세션 저장"""
+    client = _get_supabase_client()
     # 기존 세션 비활성화
-    supabase.table("agent_sessions").update({"is_active": False}).eq("agent_id", agent_id).execute()
+    client.table("agent_sessions").update({"is_active": False}).eq("agent_id", agent_id).execute()
     
     # 새 세션 저장
     data = {
@@ -164,12 +191,13 @@ def save_agent_session(agent_id: str, session_string: str) -> str:
         "session_string": session_string,
         "is_active": True
     }
-    result = supabase.table("agent_sessions").insert(data).execute()
+    result = client.table("agent_sessions").insert(data).execute()
     return result.data[0]["id"]
 
 def get_active_sessions() -> Dict:
     """활성 세션 목록 조회"""
-    result = supabase.table("agent_sessions").select("*").eq("is_active", True).execute()
+    client = _get_supabase_client()
+    result = client.table("agent_sessions").select("*").eq("is_active", True).execute()
     sessions = {}
     for session in result.data:
         sessions[session["agent_id"]] = session["session_string"]
@@ -177,5 +205,6 @@ def get_active_sessions() -> Dict:
 
 def deactivate_session(agent_id: str) -> bool:
     """세션 비활성화"""
-    result = supabase.table("agent_sessions").update({"is_active": False}).eq("agent_id", agent_id).execute()
+    client = _get_supabase_client()
+    result = client.table("agent_sessions").update({"is_active": False}).eq("agent_id", agent_id).execute()
     return len(result.data) > 0 
