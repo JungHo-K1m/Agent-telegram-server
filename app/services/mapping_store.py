@@ -34,4 +34,29 @@ def save_mapping(agent_id: str, chat_id: int, role: str, persona_id: str, delay:
 
 def get_mapping(agent_id: str, chat_id: int):
     mp = _load(MAP_FILE)
-    return mp.get(f"{agent_id}:{chat_id}") 
+    return mp.get(f"{agent_id}:{chat_id}")
+
+def delete_mapping(agent_id: str, chat_id: int):
+    """특정 매핑 삭제"""
+    mp = _load(MAP_FILE)
+    mp_key = f"{agent_id}:{chat_id}"
+    if mp_key in mp:
+        del mp[mp_key]
+        _save(MAP_FILE, mp)
+        return True
+    return False
+
+def delete_agent_mappings(agent_id: str):
+    """특정 계정의 모든 매핑 삭제"""
+    mp = _load(MAP_FILE)
+    keys_to_delete = []
+    
+    for key in mp.keys():
+        if key.startswith(f"{agent_id}:"):
+            keys_to_delete.append(key)
+    
+    for key in keys_to_delete:
+        del mp[key]
+    
+    _save(MAP_FILE, mp)
+    return len(keys_to_delete) 
