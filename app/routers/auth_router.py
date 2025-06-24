@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 import uuid
 
@@ -6,6 +6,15 @@ from app.services import telegram_service
 from utils.logging import log
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# CORS 헤더를 추가하는 미들웨어
+@router.middleware("http")
+async def add_cors_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 # 1) 모든 필드 '필수' 로 변경
 class StartReq(BaseModel):
@@ -20,6 +29,17 @@ class VerifyReq(BaseModel):
 
 _pending: dict[str, telegram_service.TelegramClient] = {}
 
+@router.options("/start")
+async def options_start():
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 @router.post("/start")
 async def start_auth(req: StartReq):
     # 2) 요청 값 그대로 사용 (fallback 없음)
@@ -32,6 +52,17 @@ async def start_auth(req: StartReq):
     _pending[auth_id] = client
     log.info("code_sent", auth_id=auth_id, phone=req.phone_number)
     return {"auth_id": auth_id, "phase": "waiting_code"}
+
+@router.options("/verify")
+async def options_verify():
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 @router.post("/verify")
 async def verify_code(req: VerifyReq):
