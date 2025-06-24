@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.services import mapping_store
+from app.services import supabase_service
 from typing import Optional
 
 router = APIRouter(prefix="/mappings", tags=["mapping"])
@@ -20,7 +20,7 @@ class MapUpdateReq(BaseModel):
 @router.post("")
 def save_map(m: MapReq):
     """새 매핑 생성"""
-    mapping_store.save_mapping(
+    supabase_service.save_mapping(
         m.agent_id, m.chat_id, m.role, m.persona_id, m.delay_sec
     )
     return {"status": "ok"}
@@ -28,28 +28,21 @@ def save_map(m: MapReq):
 @router.get("")
 def list_all():
     """모든 매핑 목록 조회"""
-    return mapping_store._load(mapping_store.MAP_FILE)
+    return supabase_service.list_all_mappings()
 
 @router.get("/{agent_id}")
 def list_agent_mappings(agent_id: str):
     """특정 계정의 모든 매핑 조회"""
-    all_mappings = mapping_store._load(mapping_store.MAP_FILE)
-    agent_mappings = {}
-    
-    for key, value in all_mappings.items():
-        if key.startswith(f"{agent_id}:"):
-            chat_id = key.split(":")[1]
-            agent_mappings[chat_id] = value
-    
+    mappings = supabase_service.list_agent_mappings(agent_id)
     return {
         "agent_id": agent_id,
-        "mappings": agent_mappings
+        "mappings": mappings
     }
 
 @router.get("/{agent_id}/{chat_id}")
 def get_mapping(agent_id: str, chat_id: int):
     """특정 채팅방 매핑 조회"""
-    mapping = mapping_store.get_mapping(agent_id, chat_id)
+    mapping = supabase_service.get_mapping(agent_id, chat_id)
     if not mapping:
         raise HTTPException(404, "매핑을 찾을 수 없습니다")
     return mapping
@@ -57,24 +50,29 @@ def get_mapping(agent_id: str, chat_id: int):
 @router.put("/{agent_id}/{chat_id}")
 def update_mapping(agent_id: str, chat_id: int, req: MapUpdateReq):
     """특정 채팅방 매핑 수정"""
-    existing_mapping = mapping_store.get_mapping(agent_id, chat_id)
+    existing_mapping = supabase_service.get_mapping(agent_id, chat_id)
     if not existing_mapping:
         raise HTTPException(404, "매핑을 찾을 수 없습니다")
     
-    # 기존 값과 새 값을 병합
-    updated_role = req.role if req.role is not None else existing_mapping["role"]
-    updated_persona_id = req.persona_id if req.persona_id is not None else existing_mapping["persona_id"]
-    updated_delay = req.delay_sec if req.delay_sec is not None else existing_mapping["delay"]
+    # 업데이트할 필드만 준비
+    update_data = {}
+    if req.role is not None:
+        update_data["role"] = req.role
+    if req.persona_id is not None:
+        update_data["persona_id"] = req.persona_id
+    if req.delay_sec is not None:
+        update_data["delay_sec"] = req.delay_sec
     
-    mapping_store.save_mapping(
-        agent_id, chat_id, updated_role, updated_persona_id, updated_delay
-    )
+    success = supabase_service.update_mapping(agent_id, chat_id, **update_data)
+    if not success:
+        raise HTTPException(500, "매핑 업데이트에 실패했습니다")
+    
     return {"status": "ok"}
 
 @router.delete("/{agent_id}/{chat_id}")
 def delete_mapping(agent_id: str, chat_id: int):
     """특정 채팅방 매핑 삭제"""
-    success = mapping_store.delete_mapping(agent_id, chat_id)
+    success = supabase_service.delete_mapping(agent_id, chat_id)
     if not success:
         raise HTTPException(404, "매핑을 찾을 수 없습니다")
     return {"status": "ok"}
@@ -82,5 +80,5 @@ def delete_mapping(agent_id: str, chat_id: int):
 @router.delete("/{agent_id}")
 def delete_all_agent_mappings(agent_id: str):
     """특정 계정의 모든 매핑 삭제"""
-    deleted_count = mapping_store.delete_agent_mappings(agent_id)
+    deleted_count = supabase_service.delete_agent_mappings(agent_id)
     return {"status": "ok", "deleted_count": deleted_count} 

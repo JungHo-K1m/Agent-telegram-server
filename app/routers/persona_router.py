@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.services import mapping_store
+from app.services import supabase_service
 
 router = APIRouter(prefix="/personas", tags=["persona"])
 
@@ -10,9 +10,9 @@ class PersonaReq(BaseModel):
 
 @router.post("")
 def create_persona(p: PersonaReq):
-    pid = mapping_store.add_persona(p.name, p.system_prompt)
+    pid = supabase_service.add_persona(p.name, p.system_prompt)
     return {"persona_id": pid}
 
 @router.get("")
 def list_personas():
-    return mapping_store.list_personas() 
+    return supabase_service.list_personas() 

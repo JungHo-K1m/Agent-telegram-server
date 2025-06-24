@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 import uuid
 
-from app.services import telegram_service, account_service
+from app.services import telegram_service, supabase_service
 from utils.logging import log
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,7 +33,7 @@ async def options_start():
 @router.post("/start")
 async def start_auth(req: StartReq):
     # 계정 정보 조회
-    account = account_service.get_account(req.account_id)
+    account = supabase_service.get_account(req.account_id)
     if not account:
         raise HTTPException(404, "계정을 찾을 수 없습니다")
     
@@ -71,6 +71,11 @@ async def verify_code(req: VerifyReq):
         session_str = await telegram_service.sign_in(
             client, phone=client._phone, code=req.code, password=req.password
         )
+        
+        # Supabase에 세션 저장
+        agent_id = client._phone
+        supabase_service.save_agent_session(agent_id, session_str)
+        
     except Exception as e:
         raise HTTPException(401, f"인증 실패: {e}")
 
