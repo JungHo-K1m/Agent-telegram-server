@@ -182,6 +182,12 @@ def delete_agent_mappings(agent_id: str) -> int:
 def save_agent_session(agent_id: str, session_string: str) -> str:
     """에이전트 세션 저장"""
     client = _get_supabase_client()
+    
+    # agent_id가 accounts 테이블에 존재하는지 확인
+    account_result = client.table("accounts").select("phone_number").eq("phone_number", agent_id).execute()
+    if not account_result.data:
+        raise Exception(f"Agent ID {agent_id}에 해당하는 계정이 accounts 테이블에 존재하지 않습니다.")
+    
     # 기존 세션 비활성화
     client.table("agent_sessions").update({"is_active": False}).eq("agent_id", agent_id).execute()
     
