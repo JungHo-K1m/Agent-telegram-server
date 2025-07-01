@@ -9,19 +9,19 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ctx_cache: dict[str, list[dict]] = {}  # (agent:chat) -> messages
 
 async def make_client(agent_id, sess):
-    # 에이전트 ID에서 계정 정보 찾기
-    account = None
-    accounts = supabase_service.list_accounts('test-tenant-id')["accounts"]
-    for account_id, account_info in accounts.items():
-        if account_info["phone_number"] == agent_id:
-            account = account_info
+    # 에이전트 ID에서 정보 찾기
+    agent = None
+    agents = supabase_service.list_agents('test-tenant-id')["agents"]
+    for agent_id_key, agent_info in agents.items():
+        if agent_info["phone_number"] == agent_id:
+            agent = agent_info
             break
     
-    if not account:
-        print(f"Warning: No account found for agent {agent_id}")
+    if not agent:
+        print(f"Warning: No agent found for agent {agent_id}")
         return None
     
-    client = TelegramClient(StringSession(sess), account["api_id"], account["api_hash"])
+    client = TelegramClient(StringSession(sess), agent["api_id"], agent["api_hash"])
 
     @client.on(events.NewMessage(incoming=True))
     async def handler(event):

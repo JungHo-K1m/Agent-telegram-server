@@ -16,52 +16,53 @@ def _get_supabase_client() -> Client:
     return supabase
 
 # ===== ACCOUNTS =====
-def add_account(tenant_id: str, account_id: str, name: str, api_id: int, api_hash: str, phone_number: str) -> str:
-    """새 계정 추가"""
+def add_agent(tenant_id: str, name: str, api_id: int, api_hash: str, phone_number: str) -> str:
+    """새 에이전트 추가"""
     client = _get_supabase_client()
     data = {
         "tenant_id": tenant_id,
-        "id": account_id,
         "name": name,
         "api_id": api_id,
         "api_hash": api_hash,
         "phone_number": phone_number
     }
-    result = client.table("accounts").insert(data).execute()
-    return account_id
+    result = client.table("agents").insert(data).execute()
+    return result.data[0]["id"]
 
-def get_account(tenant_id: str, account_id: str) -> Optional[Dict]:
-    """특정 계정 정보 조회 (테넌트별)"""
+def get_agent(tenant_id: str, agent_id: str) -> Optional[Dict]:
+    """특정 에이전트 정보 조회 (테넌트별)"""
     client = _get_supabase_client()
-    result = client.table("accounts").select("*").eq("tenant_id", tenant_id).eq("id", account_id).execute()
+    result = client.table("agents").select("*").eq("tenant_id", tenant_id).eq("id", agent_id).execute()
     if result.data:
         return result.data[0]
     return None
 
-def list_accounts(tenant_id: str) -> Dict:
-    """모든 계정 목록 조회 (테넌트별)"""
+def list_agents(tenant_id: str) -> Dict:
+    """모든 에이전트 목록 조회 (테넌트별)"""
     client = _get_supabase_client()
-    result = client.table("accounts").select("*").eq("tenant_id", tenant_id).execute()
-    accounts = {}
-    for account in result.data:
-        accounts[account["id"]] = {
-            "name": account["name"],
-            "api_id": account["api_id"],
-            "api_hash": account["api_hash"],
-            "phone_number": account["phone_number"]
+    result = client.table("agents").select("*").eq("tenant_id", tenant_id).execute()
+    agents = {}
+    for agent in result.data:
+        agents[agent["id"]] = {
+            "name": agent["name"],
+            "api_id": agent["api_id"],
+            "api_hash": agent["api_hash"],
+            "phone_number": agent["phone_number"],
+            "session_string": agent.get("session_string"),
+            "created_at": agent.get("created_at")
         }
-    return {"accounts": accounts}
+    return {"agents": agents}
 
-def update_account(tenant_id: str, account_id: str, **kwargs) -> bool:
-    """계정 정보 업데이트 (테넌트별)"""
+def update_agent(tenant_id: str, agent_id: str, **kwargs) -> bool:
+    """에이전트 정보 업데이트 (테넌트별)"""
     client = _get_supabase_client()
-    result = client.table("accounts").update(kwargs).eq("tenant_id", tenant_id).eq("id", account_id).execute()
+    result = client.table("agents").update(kwargs).eq("tenant_id", tenant_id).eq("id", agent_id).execute()
     return len(result.data) > 0
 
-def delete_account(tenant_id: str, account_id: str) -> bool:
-    """계정 삭제 (테넌트별)"""
+def delete_agent(tenant_id: str, agent_id: str) -> bool:
+    """에이전트 삭제 (테넌트별)"""
     client = _get_supabase_client()
-    result = client.table("accounts").delete().eq("tenant_id", tenant_id).eq("id", account_id).execute()
+    result = client.table("agents").delete().eq("tenant_id", tenant_id).eq("id", agent_id).execute()
     return len(result.data) > 0
 
 # ===== PERSONAS =====
@@ -151,7 +152,7 @@ def list_all_mappings(tenant_id: str) -> Dict:
     return mappings
 
 def list_agent_mappings(tenant_id: str, agent_id: str) -> Dict:
-    """특정 계정의 모든 매핑 조회 (테넌트별)"""
+    """특정 에이전트의 모든 매핑 조회 (테넌트별)"""
     client = _get_supabase_client()
     result = client.table("mappings").select("*").eq("tenant_id", tenant_id).eq("agent_id", agent_id).execute()
     mappings = {}
@@ -176,7 +177,7 @@ def delete_mapping(tenant_id: str, agent_id: str, chat_id: int) -> bool:
     return len(result.data) > 0
 
 def delete_agent_mappings(tenant_id: str, agent_id: str) -> int:
-    """계정의 모든 매핑 삭제 (테넌트별)"""
+    """에이전트의 모든 매핑 삭제 (테넌트별)"""
     client = _get_supabase_client()
     result = client.table("mappings").delete().eq("tenant_id", tenant_id).eq("agent_id", agent_id).execute()
     return len(result.data)
@@ -186,10 +187,10 @@ def save_agent_session(agent_id: str, session_string: str) -> str:
     """에이전트 세션 저장"""
     client = _get_supabase_client()
     
-    # agent_id가 accounts 테이블에 존재하는지 확인
-    account_result = client.table("accounts").select("phone_number").eq("phone_number", agent_id).execute()
+    # agent_id가 agents 테이블에 존재하는지 확인
+    account_result = client.table("agents").select("phone_number").eq("phone_number", agent_id).execute()
     if not account_result.data:
-        raise Exception(f"Agent ID {agent_id}에 해당하는 계정이 accounts 테이블에 존재하지 않습니다.")
+        raise Exception(f"Agent ID {agent_id}에 해당하는 에이전트가 agents 테이블에 존재하지 않습니다.")
     
     # 기존 세션 비활성화
     client.table("agent_sessions").update({"is_active": False}).eq("agent_id", agent_id).execute()

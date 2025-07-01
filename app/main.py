@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers.auth_router import router as auth_router
 from app.routers.persona_router import router as persona_router
 from app.routers.mapping_router import router as map_router
-from app.routers.account_router import router as account_router
+from app.routers.agent_router import router as agent_router
 from utils.logging import log
 from app.config import settings
 
@@ -24,7 +24,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(persona_router)
 app.include_router(map_router)
-app.include_router(account_router)
+app.include_router(agent_router)
 
 @app.get("/healthz")
 async def health():

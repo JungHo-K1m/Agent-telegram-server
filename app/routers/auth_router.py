@@ -9,8 +9,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # 1) 모든 필드 '필수' 로 변경
 class StartReq(BaseModel):
-    account_id: str  # 계정 ID로 변경
-    phone_number: str  # 선택사항 (계정에 저장된 번호와 다를 경우)
+    tenant_id: str
+    agent_id: str  # 에이전트 ID로 변경
+    phone_number: str
 
 class VerifyReq(BaseModel):
     auth_id: str
@@ -32,23 +33,23 @@ async def options_start():
 
 @router.post("/start")
 async def start_auth(req: StartReq):
-    # 계정 정보 조회
-    account = supabase_service.get_account(req.account_id)
-    if not account:
-        raise HTTPException(404, "계정을 찾을 수 없습니다")
+    # 에이전트 정보 조회
+    agent = supabase_service.get_agent(req.tenant_id, req.agent_id)
+    if not agent:
+        raise HTTPException(404, "에이전트를 찾을 수 없습니다")
     
-    # 전화번호 확인 (요청된 번호가 있으면 사용, 없으면 계정에 저장된 번호 사용)
-    phone_number = req.phone_number if req.phone_number else account["phone_number"]
+    # 전화번호 확인 (요청된 번호가 있으면 사용, 없으면 에이전트에 저장된 번호 사용)
+    phone_number = req.phone_number if req.phone_number else agent["phone_number"]
     
     try:
-        client = await telegram_service.send_code(account["api_id"], account["api_hash"], phone_number)
+        client = await telegram_service.send_code(agent["api_id"], agent["api_hash"], phone_number)
     except Exception as e:
         raise HTTPException(400, f"코드 발송 실패: {e}")
 
     auth_id = str(uuid.uuid4())
     _pending[auth_id] = client
-    log.info("code_sent", auth_id=auth_id, account_id=req.account_id, phone=phone_number)
-    return {"auth_id": auth_id, "phase": "waiting_code", "account_id": req.account_id}
+    log.info("code_sent", auth_id=auth_id, agent_id=req.agent_id, phone=phone_number)
+    return {"auth_id": auth_id, "phase": "waiting_code", "agent_id": req.agent_id}
 
 @router.options("/verify")
 async def options_verify():
