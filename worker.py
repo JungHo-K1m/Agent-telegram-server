@@ -11,7 +11,7 @@ ctx_cache: dict[str, list[dict]] = {}  # (agent:chat) -> messages
 async def make_client(agent_id, sess):
     # 에이전트 ID에서 계정 정보 찾기
     account = None
-    accounts = supabase_service.list_accounts()["accounts"]
+    accounts = supabase_service.list_accounts('test-tenant-id')["accounts"]
     for account_id, account_info in accounts.items():
         if account_info["phone_number"] == agent_id:
             account = account_info
@@ -25,12 +25,12 @@ async def make_client(agent_id, sess):
 
     @client.on(events.NewMessage(incoming=True))
     async def handler(event):
-        mp = supabase_service.get_mapping(agent_id, event.chat_id)
+        mp = supabase_service.get_mapping('test-tenant-id', agent_id, event.chat_id)
         if not mp: return
         key = f"{agent_id}:{event.chat_id}"
         ctx = ctx_cache.setdefault(key, [])[-10:]
 
-        persona = supabase_service.get_persona(mp["persona_id"])
+        persona = supabase_service.get_persona('test-tenant-id', mp["persona_id"])
         if not persona:
             print(f"Warning: No persona found for {mp['persona_id']}")
             return
