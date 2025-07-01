@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     
     # Supabase
     supabase_url: str = os.getenv("SUPABASE_URL", "")
-    supabase_key: str = os.getenv("SUPABASE_ANON_KEY", "")
+    supabase_key: str = (
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
+        os.getenv("SUPABASE_ANON_KEY", "")
+    )
     
     # Telegram (기본값, 실제로는 accounts 테이블에서 관리)
     telegram_api_id: int = int(os.getenv("API_ID", "0"))
