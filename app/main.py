@@ -11,6 +11,7 @@ app = FastAPI(title="Telegram Auth API")
 
 ALLOWED_ORIGINS = [
     "https://v0-supabase-community-starter-qb.vercel.app",
+    "https://v0-supabase-community-starter-jo-kappa.vercel.app",
     "http://localhost:8000",
 ]
 
