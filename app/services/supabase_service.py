@@ -204,6 +204,75 @@ def save_agent_session(agent_id: str, session_string: str) -> str:
     result = client.table("agent_sessions").insert(data).execute()
     return result.data[0]["id"]
 
+def get_agent_session(agent_id: str) -> Optional[str]:
+    """특정 에이전트의 활성 세션 스트링 조회"""
+    client = _get_supabase_client()
+    result = client.table("agent_sessions").select("session_string").eq("agent_id", agent_id).eq("is_active", True).execute()
+    if result.data:
+        return result.data[0]["session_string"]
+    return None
+
+def get_agent_session_with_tenant(tenant_id: str, agent_id: str) -> Optional[Dict]:
+    """테넌트별 특정 에이전트의 세션 정보 조회"""
+    client = _get_supabase_client()
+    
+    # 먼저 에이전트가 해당 테넌트에 속하는지 확인
+    agent_result = client.table("agents").select("id, phone_number").eq("tenant_id", tenant_id).eq("id", agent_id).execute()
+    if not agent_result.data:
+        return None
+    
+    phone_number = agent_result.data[0]["phone_number"]
+    
+    # 해당 에이전트의 활성 세션 조회
+    session_result = client.table("agent_sessions").select("*").eq("agent_id", phone_number).eq("is_active", True).execute()
+    if session_result.data:
+        session = session_result.data[0]
+        return {
+            "agent_id": agent_id,
+            "phone_number": phone_number,
+            "session_string": session["session_string"],
+            "is_active": session["is_active"],
+            "created_at": session.get("created_at")
+        }
+    return None
+
+def list_tenant_sessions(tenant_id: str) -> Dict:
+    """테넌트의 모든 에이전트 세션 조회"""
+    client = _get_supabase_client()
+    
+    # 테넌트의 모든 에이전트 조회
+    agents_result = client.table("agents").select("id, phone_number, name").eq("tenant_id", tenant_id).execute()
+    
+    sessions = {}
+    for agent in agents_result.data:
+        phone_number = agent["phone_number"]
+        
+        # 각 에이전트의 활성 세션 조회
+        session_result = client.table("agent_sessions").select("*").eq("agent_id", phone_number).eq("is_active", True).execute()
+        
+        if session_result.data:
+            session = session_result.data[0]
+            sessions[agent["id"]] = {
+                "agent_id": agent["id"],
+                "name": agent["name"],
+                "phone_number": phone_number,
+                "session_string": session["session_string"],
+                "is_active": session["is_active"],
+                "created_at": session.get("created_at")
+            }
+        else:
+            # 세션이 없는 경우
+            sessions[agent["id"]] = {
+                "agent_id": agent["id"],
+                "name": agent["name"],
+                "phone_number": phone_number,
+                "session_string": None,
+                "is_active": False,
+                "created_at": None
+            }
+    
+    return sessions
+
 def get_active_sessions() -> Dict:
     """활성 세션 목록 조회"""
     client = _get_supabase_client()
