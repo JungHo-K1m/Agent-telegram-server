@@ -27,7 +27,12 @@ class SessionReq(BaseModel):
     tenant_id: str
     agent_id: str
 
-_pending: dict[str, telegram_service.TelegramClient] = {}
+class SessionStringReq(BaseModel):
+    auth_id: str
+    code: str
+    password: str | None = None
+
+_pending: dict[str, dict] = {}
 
 @router.options("/start")
 async def options_start():
@@ -56,7 +61,12 @@ async def start_auth(req: StartReq):
         raise HTTPException(400, f"코드 발송 실패: {e}")
 
     auth_id = str(uuid.uuid4())
-    _pending[auth_id] = client
+    _pending[auth_id] = {
+        "client": client,
+        "api_id": agent["api_id"],
+        "api_hash": agent["api_hash"],
+        "phone_number": phone_number
+    }
     log.info("code_sent", auth_id=auth_id, agent_id=req.agent_id, phone=phone_number)
     return {"auth_id": auth_id, "phase": "waiting_code", "agent_id": req.agent_id}
 
@@ -82,7 +92,12 @@ async def send_code(req: CodeReq):
         raise HTTPException(400, f"코드 발송 실패: {e}")
 
     auth_id = str(uuid.uuid4())
-    _pending[auth_id] = client
+    _pending[auth_id] = {
+        "client": client,
+        "api_id": req.api_id,
+        "api_hash": req.api_hash,
+        "phone_number": req.phone_number
+    }
     log.info("code_sent", auth_id=auth_id, phone=req.phone_number, api_id=req.api_id)
     return {"auth_id": auth_id, "phase": "waiting_code", "message": "인증코드가 발송되었습니다"}
 
@@ -99,17 +114,18 @@ async def options_verify():
 
 @router.post("/verify")
 async def verify_code(req: VerifyReq):
-    client = _pending.pop(req.auth_id, None)
-    if not client:
+    pending = _pending.pop(req.auth_id, None)
+    if not pending:
         raise HTTPException(404, "인증 세션이 없습니다")
 
+    client = pending["client"]
     try:
         session_str = await telegram_service.sign_in(
-            client, phone=client._phone, code=req.code, password=req.password
+            client, phone=pending["phone_number"], code=req.code, password=req.password
         )
         
         # Supabase에 세션 저장
-        agent_id = client._phone
+        agent_id = pending["phone_number"]
         supabase_service.save_agent_session(agent_id, session_str)
         
     except Exception as e:
@@ -174,3 +190,24 @@ async def list_sessions(tenant_id: str):
         "sessions": sessions,
         "total_count": len(sessions)
     }
+
+@router.post("/session-string")
+async def get_session_string(req: SessionStringReq):
+    """
+    auth_id, code, password만 받아서 세션 스트링을 반환합니다.
+    """
+    pending = _pending.pop(req.auth_id, None)
+    if not pending:
+        raise HTTPException(404, "인증 세션이 없습니다. 인증코드를 먼저 요청하세요.")
+    client = pending["client"]
+    try:
+        session_str = await telegram_service.sign_in(
+            client,
+            phone=pending["phone_number"],
+            code=req.code,
+            password=req.password
+        )
+        await client.disconnect()
+        return {"session_string": session_str}
+    except Exception as e:
+        raise HTTPException(400, f"세션 스트링 획득 실패: {e}")
