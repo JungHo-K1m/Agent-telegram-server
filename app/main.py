@@ -4,6 +4,7 @@ from app.routers.auth_router import router as auth_router
 from app.routers.persona_router import router as persona_router
 from app.routers.mapping_router import router as map_router
 from app.routers.agent_router import router as agent_router
+from app.routers.worker_router import router as worker_router
 from utils.logging import log
 from app.config import settings
 
@@ -26,6 +27,7 @@ app.include_router(auth_router)
 app.include_router(persona_router)
 app.include_router(map_router)
 app.include_router(agent_router)
+app.include_router(worker_router)
 
 @app.get("/healthz")
 async def health():

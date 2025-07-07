@@ -16,47 +16,53 @@ app/
 ├─ routers/
 │  ├─ auth_router.py      # 텔레그램 인증
 │  ├─ persona_router.py   # 페르소나 관리
-│  └─ mapping_router.py   # 채팅방 매핑
+│  ├─ mapping_router.py   # 채팅방 매핑
+│  ├─ agent_router.py     # 에이전트 관리
+│  └─ worker_router.py    # 워커 관리
 ├─ services/
 │  ├─ telegram_service.py # 텔레그램 API
-│  ├─ mapping_store.py    # JSON 기반 데이터 저장
-│  └─ openai_service.py   # OpenAI API
+│  ├─ openai_service.py   # OpenAI API
+│  ├─ supabase_service.py # Supabase 데이터베이스
+│  ├─ agent_service.py    # 에이전트 서비스
+│  └─ worker_service.py   # 워커 서비스
 ├─ main.py                # FastAPI 앱
-└─ worker.py              # 텔레그램 워커
-
-data/
-├─ agent_sessions.json    # 에이전트 세션 정보
-├─ memberships.json       # 채팅방 매핑 정보
-└─ personas.json          # 페르소나 정보
+└─ config.py              # 설정 관리
+├─ worker_improved.py     # 개선된 워커 스크립트
+└─ utils/
+    └─ logging.py         # 로깅 설정
 ```
 
 ## 🛠️ 설치 및 설정
 
 ### 1. 의존성 설치
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 2. 환경변수 설정
+
 ```bash
 # .env 파일 생성
 OPENAI_API_KEY=your_openai_api_key
-API_ID=your_telegram_api_id
-API_HASH=your_telegram_api_hash
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_key
 ```
 
 ### 3. 서버 실행
+
 ```bash
 # FastAPI 서버
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # 워커 (별도 터미널)
-python worker.py
+python worker_improved.py
 ```
 
 ## 📡 API 사용법
 
 ### 1. 텔레그램 인증
+
 ```bash
 # 인증 코드 발송
 POST /auth/start
@@ -76,6 +82,7 @@ POST /auth/verify
 ```
 
 ### 2. 페르소나 생성
+
 ```bash
 POST /personas
 {
@@ -85,6 +92,7 @@ POST /personas
 ```
 
 ### 3. 채팅방 매핑
+
 ```bash
 POST /mappings
 {
@@ -96,13 +104,30 @@ POST /mappings
 }
 ```
 
+### 4. 워커 관리
+
+```bash
+# 워커 상태 조회
+GET /worker/status
+
+# 워커 시작
+POST /worker/start
+
+# 워커에 에이전트 추가
+POST /worker/add-agent
+{
+  "tenant_id": "tenant-uuid",
+  "agent_id": "agent-uuid"
+}
+```
+
 ## 🔄 사용 플로우
 
-1. **인증**: `/auth` API로 텔레그램 세션 생성
-2. **세션 저장**: `data/agent_sessions.json`에 세션 정보 추가
-3. **페르소나 생성**: `/personas` API로 AI 페르소나 등록
-4. **매핑 설정**: `/mappings` API로 채팅방과 페르소나 연결
-5. **워커 실행**: `python worker.py`로 자동 응답 시작
+1. **재단 생성**: 대시보드에서 재단 정보 등록
+2. **페르소나 생성**: 대시보드에서 AI 페르소나 등록
+3. **에이전트 등록**: 대시보드에서 텔레그램 계정 인증 및 등록
+4. **매핑 설정**: 대시보드에서 채팅방과 페르소나 연결
+5. **워커 실행**: `python worker_improved.py`로 자동 응답 시작
 
 ## 🎯 롤 타입
 
@@ -119,4 +144,4 @@ POST /mappings
 
 ## 📝 라이선스
 
-MIT License 
+MIT License

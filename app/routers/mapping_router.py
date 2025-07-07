@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from app.services import supabase_service
+from app.services.worker_service import worker
 from typing import Optional
 
 router = APIRouter(prefix="/mappings", tags=["mapping"])
@@ -20,11 +21,18 @@ class MapUpdateReq(BaseModel):
     delay_sec: Optional[int] = None
 
 @router.post("")
-def save_map(m: MapReq):
+async def save_map(m: MapReq, background_tasks: BackgroundTasks):
     """새 매핑 생성"""
     supabase_service.save_mapping(
         m.tenant_id, m.agent_id, m.chat_id, m.role, m.persona_id, m.delay_sec
     )
+    
+    # 워커가 실행 중이면 해당 에이전트가 워커에 있는지 확인하고 없으면 추가
+    if worker.is_running:
+        client_key = f"{m.tenant_id}:{m.agent_id}"
+        if client_key not in worker.clients:
+            background_tasks.add_task(worker.add_agent, m.tenant_id, m.agent_id)
+    
     return {"status": "ok"}
 
 @router.get("")

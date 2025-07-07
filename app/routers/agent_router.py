@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from app.services import agent_service
+from app.services.worker_service import worker
 from typing import Optional
 
 router = APIRouter(prefix="/agents", tags=["agent"])
@@ -20,12 +21,17 @@ class AgentUpdateReq(BaseModel):
     phone_number: Optional[str] = None
 
 @router.post("")
-def create_agent(req: AgentCreateReq):
+async def create_agent(req: AgentCreateReq, background_tasks: BackgroundTasks):
     """새 에이전트 생성"""
-    agent_service.add_agent(
+    agent_id = agent_service.add_agent(
         req.tenant_id, req.name, req.api_id, req.api_hash, req.phone_number
     )
-    return {"status": "ok"}
+    
+    # 워커가 실행 중이면 자동으로 에이전트 추가
+    if worker.is_running:
+        background_tasks.add_task(worker.add_agent, req.tenant_id, agent_id)
+    
+    return {"status": "ok", "agent_id": agent_id}
 
 @router.get("")
 def list_agents(tenant_id: str):
