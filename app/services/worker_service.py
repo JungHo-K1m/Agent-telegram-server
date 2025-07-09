@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.services import supabase_service, openai_service
+from app.services.api_manager import api_manager
 from utils.logging import log
 
 # 로거 설정
@@ -101,9 +102,23 @@ class TelegramWorker:
     async def _create_client(self, session_info: Dict):
         """텔레그램 클라이언트 생성 및 이벤트 핸들러 설정"""
         try:
-            # Telegram API 정보 직접 설정
-            api_id = 25060740
-            api_hash = "f93d24a5fba99007d0a81a28ab5ca7bc"
+            # 에이전트별 API 정보 사용 (Supabase에서 가져온 정보)
+            api_id = session_info["api_id"]
+            api_hash = session_info["api_hash"]
+            
+            # api_id가 문자열인 경우 정수로 변환
+            if isinstance(api_id, str):
+                try:
+                    # UUID 형태인 경우 기본값 사용
+                    if len(api_id) > 20:  # UUID 길이 체크
+                        logger.warning(f"Invalid api_id format (UUID detected): {api_id}, using default")
+                        api_id = 25060740
+                        api_hash = "f93d24a5fba99007d0a81a28ab5ca7bc"
+                    else:
+                        api_id = int(api_id)
+                except ValueError:
+                    logger.error(f"Invalid api_id format: {api_id}")
+                    return
             
             client = TelegramClient(
                 StringSession(session_info["session_string"]),
