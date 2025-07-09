@@ -16,6 +16,7 @@ class Settings(BaseSettings):
         os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
         os.getenv("SUPABASE_ANON_KEY", "")
     )
+    supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     
     # Telegram (기본값, 실제로는 accounts 테이블에서 관리)
     telegram_api_id: int = int(os.getenv("API_ID", "0"))
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     model_config: SettingsConfigDict = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
+        "extra": "ignore",  # 정의되지 않은 환경변수 무시
     }
 
 settings = Settings()
