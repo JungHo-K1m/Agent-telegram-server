@@ -129,6 +129,13 @@ class TelegramWorker:
             # 메시지 핸들러 등록
             @client.on(events.NewMessage(incoming=True))
             async def message_handler(event):
+                # 메시지 이벤트 감지 로그 추가
+                log.info(
+                    "[이벤트 감지] NewMessage",
+                    chat_id=getattr(event, 'chat_id', None),
+                    sender_id=getattr(event, 'sender_id', None),
+                    text_preview=event.text[:50] if hasattr(event, 'text') and event.text else None
+                )
                 await self._handle_message(session_info, event)
                 
             # 클라이언트 시작
