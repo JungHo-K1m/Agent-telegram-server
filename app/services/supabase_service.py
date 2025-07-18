@@ -110,7 +110,7 @@ def delete_persona(tenant_id: str, persona_id: str) -> bool:
     return len(result.data) > 0
 
 # ===== MAPPINGS =====
-def save_mapping(tenant_id: str, agent_id: str, chat_id: int, role: str, persona_id: str, delay: int) -> str:
+def save_mapping(tenant_id: str, agent_id: str, chat_id: int, role: str, persona_id: str, delay: int, split_delay: int = 2) -> str:
     """매핑 저장 (upsert)"""
     client = _get_supabase_client()
     data = {
@@ -119,7 +119,8 @@ def save_mapping(tenant_id: str, agent_id: str, chat_id: int, role: str, persona
         "chat_id": chat_id,
         "role": role,
         "persona_id": persona_id,
-        "delay_sec": delay
+        "delay_sec": delay,
+        "split_delay_sec": split_delay
     }
     result = client.table("mappings").upsert(data, on_conflict="tenant_id,agent_id,chat_id").execute()
     return result.data[0]["id"]
@@ -133,7 +134,8 @@ def get_mapping(tenant_id: str, agent_id: str, chat_id: int) -> Optional[Dict]:
         return {
             "role": mapping["role"],
             "persona_id": mapping["persona_id"],
-            "delay": mapping["delay_sec"]
+            "delay": mapping["delay_sec"],
+            "split_delay": mapping.get("split_delay_sec", 2)
         }
     return None
 
@@ -147,7 +149,8 @@ def list_all_mappings(tenant_id: str) -> Dict:
         mappings[key] = {
             "role": mapping["role"],
             "persona_id": mapping["persona_id"],
-            "delay": mapping["delay_sec"]
+            "delay": mapping["delay_sec"],
+            "split_delay": mapping.get("split_delay_sec", 2)
         }
     return mappings
 
@@ -160,7 +163,8 @@ def list_agent_mappings(tenant_id: str, agent_id: str) -> Dict:
         mappings[str(mapping["chat_id"])] = {
             "role": mapping["role"],
             "persona_id": mapping["persona_id"],
-            "delay": mapping["delay_sec"]
+            "delay": mapping["delay_sec"],
+            "split_delay": mapping.get("split_delay_sec", 2)
         }
     return mappings
 

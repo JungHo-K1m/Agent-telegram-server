@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict
 import asyncio
 
 from app.services.worker_service import worker
@@ -12,10 +12,26 @@ class WorkerStatusResponse(BaseModel):
     is_running: bool
     active_agents: int
     total_contexts: int
+    uptime_seconds: Optional[int] = None
 
 class AgentControlRequest(BaseModel):
     tenant_id: str
     agent_id: str
+
+class AgentStatusResponse(BaseModel):
+    tenant_id: str
+    agent_id: str
+    agent_name: str
+    is_connected: bool
+    chat_count: int
+    last_activity: Optional[str] = None
+
+class ContextInfoResponse(BaseModel):
+    tenant_id: str
+    agent_id: str
+    chat_id: str
+    message_count: int
+    last_message_time: Optional[str] = None
 
 @router.get("/status")
 async def get_worker_status():
@@ -25,6 +41,30 @@ async def get_worker_status():
         active_agents=len(worker.clients),
         total_contexts=len(worker.context_cache)
     )
+
+@router.get("/status/detailed")
+async def get_detailed_worker_status():
+    """상세한 워커 상태 조회"""
+    agent_details = []
+    for client_key, client in worker.clients.items():
+        tenant_id, agent_id = client_key.split(":", 1)
+        
+        # 해당 에이전트의 컨텍스트 수 계산
+        chat_count = sum(1 for k in worker.context_cache.keys() if k.startswith(f"{tenant_id}:{agent_id}:"))
+        
+        agent_details.append({
+            "tenant_id": tenant_id,
+            "agent_id": agent_id,
+            "is_connected": client.is_connected(),
+            "chat_count": chat_count
+        })
+    
+    return {
+        "is_running": worker.is_running,
+        "active_agents": len(worker.clients),
+        "total_contexts": len(worker.context_cache),
+        "agent_details": agent_details
+    }
 
 @router.post("/start")
 async def start_worker(background_tasks: BackgroundTasks):
@@ -97,13 +137,41 @@ async def list_active_agents():
     agents = []
     for client_key, client in worker.clients.items():
         tenant_id, agent_id = client_key.split(":", 1)
+        
+        # 해당 에이전트의 컨텍스트 수 계산
+        chat_count = sum(1 for k in worker.context_cache.keys() if k.startswith(f"{tenant_id}:{agent_id}:"))
+        
         agents.append({
             "tenant_id": tenant_id,
             "agent_id": agent_id,
-            "is_connected": client.is_connected()
+            "is_connected": client.is_connected(),
+            "chat_count": chat_count
         })
     
     return {
+        "active_agents": agents,
+        "total_count": len(agents)
+    }
+
+@router.get("/agents/{tenant_id}")
+async def list_tenant_agents(tenant_id: str):
+    """특정 테넌트의 활성 에이전트 목록 조회"""
+    agents = []
+    for client_key, client in worker.clients.items():
+        if client_key.startswith(f"{tenant_id}:"):
+            agent_id = client_key.split(":", 1)[1]
+            
+            # 해당 에이전트의 컨텍스트 수 계산
+            chat_count = sum(1 for k in worker.context_cache.keys() if k.startswith(f"{tenant_id}:{agent_id}:"))
+            
+            agents.append({
+                "agent_id": agent_id,
+                "is_connected": client.is_connected(),
+                "chat_count": chat_count
+            })
+    
+    return {
+        "tenant_id": tenant_id,
         "active_agents": agents,
         "total_count": len(agents)
     }
@@ -124,4 +192,44 @@ async def list_contexts():
     return {
         "contexts": contexts,
         "total_count": len(contexts)
-    } 
+    }
+
+@router.get("/contexts/{tenant_id}")
+async def list_tenant_contexts(tenant_id: str):
+    """특정 테넌트의 컨텍스트 캐시 목록 조회"""
+    contexts = []
+    for context_key, messages in worker.context_cache.items():
+        if context_key.startswith(f"{tenant_id}:"):
+            agent_id, chat_id = context_key.split(":", 2)[1:]
+            contexts.append({
+                "agent_id": agent_id,
+                "chat_id": chat_id,
+                "message_count": len(messages)
+            })
+    
+    return {
+        "tenant_id": tenant_id,
+        "contexts": contexts,
+        "total_count": len(contexts)
+    }
+
+@router.delete("/contexts/{tenant_id}/{agent_id}/{chat_id}")
+async def clear_context(tenant_id: str, agent_id: str, chat_id: str):
+    """특정 채팅방의 컨텍스트 캐시 삭제"""
+    context_key = f"{tenant_id}:{agent_id}:{chat_id}"
+    if context_key in worker.context_cache:
+        del worker.context_cache[context_key]
+        log.info("Context cleared", tenant_id=tenant_id, agent_id=agent_id, chat_id=chat_id)
+        return {"status": "success", "message": "Context cleared"}
+    else:
+        raise HTTPException(404, "Context not found")
+
+@router.delete("/contexts/{tenant_id}")
+async def clear_tenant_contexts(tenant_id: str):
+    """특정 테넌트의 모든 컨텍스트 캐시 삭제"""
+    keys_to_remove = [k for k in worker.context_cache.keys() if k.startswith(f"{tenant_id}:")]
+    for key in keys_to_remove:
+        del worker.context_cache[key]
+    
+    log.info("All contexts cleared for tenant", tenant_id=tenant_id, cleared_count=len(keys_to_remove))
+    return {"status": "success", "message": f"Cleared {len(keys_to_remove)} contexts"} 

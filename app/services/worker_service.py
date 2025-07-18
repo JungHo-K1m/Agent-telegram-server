@@ -177,42 +177,55 @@ class TelegramWorker:
             context_key = f"{tenant_id}:{agent_id}:{chat_id}"
             context = self.context_cache.setdefault(context_key, [])
             
-            # 최근 10개 메시지만 유지
+            # 최근 20개 메시지만 유지
             if len(context) > 20:
                 context = context[-20:]
                 self.context_cache[context_key] = context
                 
-            # OpenAI 응답 생성
-            reply = await openai_service.generate_reply(
+            # 채팅 참여자 정보 수집 (선택사항)
+            chat_participants = await self._get_chat_participants(event)
+            
+            # OpenAI 응답 생성 (개선된 버전)
+            replies = await openai_service.generate_multi_reply(
                 persona["system_prompt"],
                 mapping["role"],
                 context,
-                event.text
+                event.text,
+                chat_participants
             )
             
-            # 응답 지연
-            await asyncio.sleep(mapping["delay"])
+            # 여러 응답을 순차적으로 전송
+            for i, reply in enumerate(replies):
+                # 첫 번째 응답이 아닌 경우 추가 지연
+                if i > 0:
+                    await asyncio.sleep(mapping.get("split_delay", 2))
+                
+                # 응답 지연
+                await asyncio.sleep(mapping["delay"])
+                
+                # 메시지 전송
+                await event.respond(reply)
+                
+                # 메시지 저장
+                try:
+                    client = supabase_service._get_supabase_client()
+                    client.table("messages").insert({
+                        "tenant_id": tenant_id,
+                        "chat_id": chat_id,
+                        "agent_id": agent_id,
+                        "content": reply,
+                        "user_id": None,  # AI 응답이므로 user_id는 None
+                        "message_index": i,  # 여러 응답 중 몇 번째인지
+                        "total_messages": len(replies)  # 총 응답 개수
+                    }).execute()
+                except Exception as e:
+                    logger.error(f"메시지 저장 실패: {e}")
             
-            # 메시지 전송
-            await event.respond(reply)
-            
-            # 메시지 저장 (messages 테이블에 직접 저장)
-            try:
-                client = supabase_service._get_supabase_client()
-                client.table("messages").insert({
-                    "tenant_id": tenant_id,
-                    "chat_id": chat_id,
-                    "agent_id": agent_id,
-                    "content": reply,
-                    "user_id": None  # AI 응답이므로 user_id는 None
-                }).execute()
-            except Exception as e:
-                logger.error(f"메시지 저장 실패: {e}")
-            
-            # 컨텍스트 업데이트
+            # 컨텍스트 업데이트 (모든 응답을 하나로 합쳐서 저장)
+            all_replies = " ".join(replies)
             context.extend([
                 {"role": "user", "content": event.text},
-                {"role": "assistant", "content": reply}
+                {"role": "assistant", "content": all_replies}
             ])
             
             logger.info("Message processed successfully",
@@ -220,7 +233,8 @@ class TelegramWorker:
                        agent_id=agent_id,
                        chat_id=chat_id,
                        message_length=len(event.text),
-                       reply_length=len(reply))
+                       reply_count=len(replies),
+                       total_reply_length=len(all_replies))
                        
         except Exception as e:
             logger.error("Failed to process message",
@@ -228,7 +242,20 @@ class TelegramWorker:
                         agent_id=session_info.get("agent_id"),
                         chat_id=getattr(event, 'chat_id', None),
                         error=str(e))
-                        
+    
+    async def _get_chat_participants(self, event) -> List[str]:
+        """채팅 참여자 정보 수집"""
+        try:
+            # 채팅 정보 가져오기
+            chat = await event.get_chat()
+            if hasattr(chat, 'participants_count'):
+                # 그룹 채팅인 경우 참여자 수만 반환
+                return [f"participant_{i}" for i in range(chat.participants_count)]
+            return []
+        except Exception as e:
+            logger.debug(f"Failed to get chat participants: {e}")
+            return []
+            
     async def add_agent(self, tenant_id: str, agent_id: str):
         """새로운 에이전트 추가"""
         try:
@@ -302,21 +329,22 @@ class TelegramWorker:
         return False
         
     async def _get_chat_config(self, tenant_id: str, agent_id: str, chat_id: int) -> Optional[Dict]:
-        """agent_chat_configs에서 채팅 설정 조회"""
+        """mappings 테이블에서 채팅 설정 조회"""
         try:
             client = supabase_service._get_supabase_client()
             
-            # agent_chat_configs 테이블에서 조회
-            result = client.table("agent_chat_configs").select(
-                "persona_id, role, delay_seconds"
-            ).eq("agent_id", agent_id).eq("chat_id", str(chat_id)).execute()
+            # mappings 테이블에서 조회
+            result = client.table("mappings").select(
+                "persona_id, role, delay_sec, split_delay_sec"
+            ).eq("tenant_id", tenant_id).eq("agent_id", agent_id).eq("chat_id", str(chat_id)).execute()
             
             if result.data:
                 config = result.data[0]
                 return {
                     "persona_id": config["persona_id"],
                     "role": config["role"],
-                    "delay": config["delay_seconds"]
+                    "delay": config["delay_sec"],
+                    "split_delay": config.get("split_delay_sec", 2)
                 }
             return None
             
