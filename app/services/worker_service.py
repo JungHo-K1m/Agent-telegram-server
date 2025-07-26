@@ -158,6 +158,9 @@ class TelegramWorker:
             
     async def _handle_message(self, session_info: Dict, event):
         """텔레그램 메시지 처리"""
+        import time
+        start_time = time.time()
+        
         try:
             tenant_id = session_info["tenant_id"]
             agent_id = session_info["agent_id"]
@@ -192,6 +195,17 @@ class TelegramWorker:
             # 채팅 참여자 정보 수집 (선택사항)
             chat_participants = await self._get_chat_participants(event)
             
+            # 메시지 필터링 - 답변해야 할지 판단
+            should_respond = await openai_service.should_respond_to_message(event.text, context, str(chat_id))
+            
+            if not should_respond:
+                logger.info("메시지 필터링됨 - 답변하지 않음",
+                           tenant_id=tenant_id,
+                           agent_id=agent_id,
+                           chat_id=chat_id,
+                           message=event.text)
+                return
+            
             # OpenAI 응답 생성 (개선된 버전)
             replies = await openai_service.generate_multi_reply(
                 persona["system_prompt"],
@@ -207,8 +221,9 @@ class TelegramWorker:
                 if i > 0:
                     await asyncio.sleep(mapping.get("split_delay", 2))
                 
-                # 응답 지연
-                await asyncio.sleep(mapping["delay"])
+                # 응답 지연 (더 자연스럽게)
+                delay_time = mapping.get("delay", 3)  # 기본값 3초
+                await asyncio.sleep(delay_time)
                 
                 # 메시지 전송
                 await event.respond(reply)
@@ -221,9 +236,7 @@ class TelegramWorker:
                         "chat_id": chat_id,
                         "agent_id": agent_id,
                         "content": reply,
-                        "user_id": None,  # AI 응답이므로 user_id는 None
-                        "message_index": i,  # 여러 응답 중 몇 번째인지
-                        "total_messages": len(replies)  # 총 응답 개수
+                        "user_id": None  # AI 응답이므로 user_id는 None
                     }).execute()
                 except Exception as e:
                     logger.error(f"메시지 저장 실패: {e}")
@@ -235,13 +248,17 @@ class TelegramWorker:
                 {"role": "assistant", "content": all_replies}
             ])
             
+            # 처리 시간 계산
+            processing_time = time.time() - start_time
+            
             logger.info("Message processed successfully",
                        tenant_id=tenant_id,
                        agent_id=agent_id,
                        chat_id=chat_id,
                        message_length=len(event.text),
                        reply_count=len(replies),
-                       total_reply_length=len(all_replies))
+                       total_reply_length=len(all_replies),
+                       processing_time_seconds=round(processing_time, 2))
                        
         except Exception as e:
             logger.error("Failed to process message",
