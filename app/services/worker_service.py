@@ -196,15 +196,29 @@ class TelegramWorker:
             chat_participants = await self._get_chat_participants(event)
             
             # 메시지 필터링 - 답변해야 할지 판단
+            logger.info("🔍 메시지 필터링 시작",
+                       tenant_id=tenant_id,
+                       agent_id=agent_id,
+                       chat_id=chat_id,
+                       message=event.text,
+                       context_length=len(context))
+            
             should_respond = await openai_service.should_respond_to_message(event.text, context, str(chat_id))
             
             if not should_respond:
-                logger.info("메시지 필터링됨 - 답변하지 않음",
+                logger.info("❌ 메시지 필터링됨 - 답변하지 않음",
                            tenant_id=tenant_id,
                            agent_id=agent_id,
                            chat_id=chat_id,
-                           message=event.text)
+                           message=event.text,
+                           reason="필터링 로직에 의해 거부됨")
                 return
+            
+            logger.info("✅ 메시지 필터링 통과 - 답변 진행",
+                       tenant_id=tenant_id,
+                       agent_id=agent_id,
+                       chat_id=chat_id,
+                       message=event.text)
             
             # OpenAI 응답 생성 (개선된 버전)
             replies = await openai_service.generate_multi_reply(
