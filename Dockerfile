@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./app ./app
 COPY ./utils ./utils
 COPY ./start_server.py ./start_server.py
+COPY ./worker_improved.py ./worker_improved.py
 
 EXPOSE 8080
 
