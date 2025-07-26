@@ -3,7 +3,8 @@ import openai
 import re
 from typing import List, Dict
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI 클라이언트 초기화 (1.0+ 버전)
+client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 ROLE_GUIDE = {
     "Chatter":   "You are a friendly content sharer. Respond naturally like a real person.",
@@ -20,7 +21,7 @@ async def generate_reply(persona_prompt: str, role: str, context: list[dict], us
         + [{"role": "user", "content": user_msg}]
     )
 
-    resp = await openai.ChatCompletion.acreate(
+    resp = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0.7,
@@ -55,7 +56,7 @@ async def generate_multi_reply(persona_prompt: str, role: str, context: list[dic
         + [{"role": "user", "content": user_msg}]
     )
 
-    resp = await openai.ChatCompletion.acreate(
+    resp = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0.7,
@@ -90,7 +91,7 @@ async def generate_natural_reply(persona_prompt: str, role: str, context: list[d
         + [{"role": "user", "content": user_msg}]
     )
 
-    resp = await openai.ChatCompletion.acreate(
+    resp = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0.8,  # 더 창의적인 응답
