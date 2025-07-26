@@ -13,3 +13,9 @@ def configure():
 
 configure()
 log = structlog.get_logger()
+
+def get_logger(name: str = None):
+    """모듈별 로거를 반환하는 함수"""
+    if name:
+        return structlog.get_logger(name)
+    return log
